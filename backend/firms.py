@@ -15,7 +15,7 @@ import logging
 firms_bp = Blueprint('firms', __name__)
 
 # NASA FIRMS API configuration
-FIRMS_API_KEY = "5235c7de7861056036e294f37ee02d1d"
+FIRMS_API_KEY = os.getenv('FIRMS_API_KEY', 'YOUR_API_KEY_HERE')
 FIRMS_BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api"
 
 # Cache directory

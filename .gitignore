@@ -1,4 +1,9 @@
-
+# Environment variables
+.env
+.env.local
+.env.production.local
+backend/.env
+frontend/.env.local
 
 # Node
 node_modules/
@@ -8,4 +13,33 @@ frontend/node_modules/
 dist/
 build/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/__pycache__/
+venv/
+ENV/
+env/
 
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Cache
+firms_cache/
+backend/firms_cache/
+
+# Keep .env.production template but not the actual values
+!.env.production

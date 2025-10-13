@@ -18,9 +18,15 @@ load_dotenv()
 # Create the Flask application
 app = Flask(__name__)
 
-# Enable CORS to allow our React app (running on port 5173) to talk to this Flask server
-# Without CORS, the browser would block requests between different ports
-CORS(app, origins=['http://localhost:5173', 'http://localhost:3000', '*'])
+# Enable CORS to allow our React app to talk to this Flask server
+# Allows local development and production Vercel deployment
+CORS(app, origins=[
+    'http://localhost:5173',           # Vite dev server
+    'http://localhost:3000',           # Alternative dev port
+    'https://*.vercel.app',            # All Vercel deployments
+    'https://nasa-spaceapps-2025-production.up.railway.app',  # Railway frontend (if used)
+    '*'                                # Fallback for other origins
+])
 
 # Register FIRMS blueprint for wildfire data
 app.register_blueprint(firms_bp)
@@ -74,6 +80,23 @@ def get_aqi_category(aqi):
         return "Very Unhealthy"
     else:
         return "Hazardous"
+
+# Root endpoint for basic health check
+@app.route('/', methods=['GET'])
+def home():
+    """
+    Root endpoint - confirms server is running
+    """
+    return jsonify({
+        'status': 'online',
+        'message': 'AirAware + CleanMap API',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/health',
+            'air_quality': '/api/airquality?lat=LAT&lon=LON',
+            'wildfire': '/api/wildfire?lat=LAT&lon=LON'
+        }
+    }), 200
 
 @app.route('/api/airquality', methods=['GET'])
 def get_air_quality():
@@ -330,4 +353,16 @@ if __name__ == '__main__':
     # Run the Flask development server
     print("Starting AirAware + CleanMap Backend Server...")
     print("Make sure to set OPENAQ_API_KEY and OPENWEATHER_API_KEY in your .env file")
-    app.run(debug=True, port=5001)
+    
+    # Use Railway's PORT environment variable in production, fallback to 5001 for local dev
+    port = int(os.getenv('PORT', 5001))
+    
+    # In production (Railway), use host 0.0.0.0 to accept external connections
+    # In development, debug=True for hot reloading
+    is_production = os.getenv('FLASK_ENV') == 'production'
+    
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=not is_production
+    )

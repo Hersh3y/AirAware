@@ -1,4 +1,5 @@
-const API_BASE_URL = '/api';
+// Use environment variable for API base URL, fallback to /api for local development
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const getAQICategory = (aqi = 100) => {
   if (aqi <= 50) return { level: 'Good', color: 'green', textColor: 'text-green-800', bgColor: 'bg-green-100' };

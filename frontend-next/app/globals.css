@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Leaflet map full height */
+#__next,
+main {
+  height: 100%;
+}
+
+/* Custom marker icon - no white border */
+.custom-div-icon span,
+.custom-marker div {
+  border: none !important;
+  outline: none !important;
+}
+
+/* Popup dark theme */
+.leaflet-popup-content-wrapper {
+  background: #1b263b !important;
+  border: none !important;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.4) !important;
+  border-radius: 8px !important;
+}
+.leaflet-popup-content {
+  background: #1b263b !important;
+  color: #e0e1dd !important;
+  margin: 0 !important;
+  padding: 10px !important;
+  border-radius: 8px !important;
+}
+.leaflet-popup-tip {
+  background: #1b263b !important;
+}
+.leaflet-control-attribution {
+  display: none !important;
+}

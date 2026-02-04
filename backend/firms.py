@@ -9,14 +9,15 @@ import requests
 import time
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
-import logging
 
 # Create blueprint
 firms_bp = Blueprint('firms', __name__)
 
-# NASA FIRMS API configuration
-FIRMS_API_KEY = os.getenv('FIRMS_API_KEY', 'YOUR_API_KEY_HERE')
+# NASA FIRMS API configuration (from env; no key = no fire data)
+FIRMS_API_KEY = os.getenv('FIRMS_API_KEY')
 FIRMS_BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api"
+
+EMPTY_GEOJSON = {"type": "FeatureCollection", "features": []}
 
 # Cache directory
 CACHE_DIR = "firms_cache"
@@ -39,45 +40,31 @@ def is_cache_valid(file_path, max_age_hours=3):
 
 def fetch_firms_data(bbox, days=7):
     """
-    Fetch FIRMS data from NASA API
+    Fetch FIRMS data from NASA API. Returns list of fire dicts or empty list on error/empty.
     bbox: [minLon, minLat, maxLon, maxLat] in EPSG:4326
     days: number of days to look back (max 31)
     """
+    if not FIRMS_API_KEY:
+        current_app.logger.info("FIRMS_API_KEY not set; returning no fire data")
+        return []
     min_lon, min_lat, max_lon, max_lat = bbox
-    
-    # Calculate date range
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
-    
-    # Format dates for FIRMS API
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
-    
-    # FIRMS API endpoint for VIIRS 375m data
     url = f"{FIRMS_BASE_URL}/area/csv/{FIRMS_API_KEY}/VIIRS_SNPP_NPP/MODIS_NRT/{start_str}/{end_str}"
-    
-    params = {
-        'area': f"{min_lat},{min_lon},{max_lat},{max_lon}",  # lat,lon,lat,lon format
-    }
-    
+    params = {'area': f"{min_lat},{min_lon},{max_lat},{max_lon}"}
     try:
         current_app.logger.info(f"Fetching FIRMS data for bbox: {bbox}, days: {days}")
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
-        
-        # Parse CSV response
         csv_text = response.text
         lines = csv_text.strip().split('\n')
-        
-        if len(lines) <= 1:  # Only header or empty
-            current_app.logger.info("No fire data found in FIRMS response")
-            # Return demo data for testing
-            return generate_demo_fire_data(bbox)
-        
-        # Parse CSV header
+        if len(lines) <= 1:
+            current_app.logger.info("No fire data in FIRMS response")
+            return []
         headers = lines[0].split(',')
         fire_data = []
-        
         for line in lines[1:]:
             if line.strip():
                 values = line.split(',')
@@ -86,61 +73,14 @@ def fetch_firms_data(bbox, days=7):
                     if i < len(values):
                         fire_point[header.strip()] = values[i].strip()
                 fire_data.append(fire_point)
-        
         current_app.logger.info(f"Retrieved {len(fire_data)} fire points from FIRMS")
         return fire_data
-        
     except requests.exceptions.RequestException as e:
         current_app.logger.error(f"FIRMS API error: {e}")
-        # Return demo data for testing
-        return generate_demo_fire_data(bbox)
+        return []
     except Exception as e:
         current_app.logger.error(f"FIRMS parsing error: {e}")
-        # Return demo data for testing
-        return generate_demo_fire_data(bbox)
-
-def generate_demo_fire_data(bbox):
-    """Generate demo fire data for testing when no real data is available"""
-    min_lon, min_lat, max_lon, max_lat = bbox
-    
-    # Generate 2-5 demo fires within the bounding box
-    import random
-    num_fires = random.randint(2, 5)
-    demo_fires = []
-    
-    for i in range(num_fires):
-        # Random position within bbox
-        lat = min_lat + random.random() * (max_lat - min_lat)
-        lon = min_lon + random.random() * (max_lon - min_lon)
-        
-        # Random fire properties
-        confidence = random.choice(['high', 'medium', 'low'])
-        brightness = random.randint(300, 500)
-        frp = round(random.uniform(5, 50), 1)
-        
-        fire_point = {
-            'latitude': str(lat),
-            'longitude': str(lon),
-            'confidence': confidence,
-            'brightness': str(brightness),
-            'bright_t31': str(brightness - 50),
-            'frp': str(frp),
-            'scan': str(random.randint(1, 3)),
-            'track': str(random.randint(1, 3)),
-            'acq_date': datetime.now().strftime('%Y-%m-%d'),
-            'acq_time': f"{random.randint(0, 23):02d}:{random.randint(0, 59):02d}",
-            'satellite': random.choice(['NPP', 'NOAA-20', 'NOAA-21']),
-            'instrument': 'VIIRS',
-            'version': '1.0',
-            'bright_ti4': str(brightness + 20),
-            'bright_ti5': str(brightness - 30),
-            'daynight': random.choice(['D', 'N']),
-            'type': '0'
-        }
-        demo_fires.append(fire_point)
-    
-    current_app.logger.info(f"Generated {len(demo_fires)} demo fire points for testing")
-    return demo_fires
+        return []
 
 def convert_to_geojson(firms_data):
     """Convert FIRMS data to GeoJSON format"""
@@ -218,14 +158,9 @@ def get_fires():
             with open(cache_file, 'r') as f:
                 return jsonify(json.load(f))
         
-        # Fetch fresh data
         firms_data = fetch_firms_data(bbox, days)
-        
         if not firms_data:
-            return jsonify({
-                "type": "FeatureCollection",
-                "features": []
-            })
+            return jsonify(EMPTY_GEOJSON)
         
         # Convert to GeoJSON
         geojson_data = convert_to_geojson(firms_data)

@@ -18,6 +18,9 @@ load_dotenv()
 # Create the Flask application
 app = Flask(__name__)
 
+# Set SECRET_KEY from environment variable (required for sessions/cookies)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-please-change-in-production')
+
 CORS(app, origins=['http://localhost:5173', 'http://localhost:3000', '*'])
 
 # Register FIRMS blueprint for wildfire data
@@ -267,6 +270,8 @@ def health_check():
 if __name__ == '__main__':
     print("Starting AirAware Backend...")
     print("Set OPENWEATHER_API_KEY in .env for weather. Air quality uses Open-Meteo (no key).")
+    print("WARNING: For production deployment, use Gunicorn instead of Flask dev server")
     port = int(os.getenv('PORT', 5001))
-    is_production = os.getenv('FLASK_ENV') == 'production'
-    app.run(host='0.0.0.0', port=port, debug=not is_production)
+    # Only run in debug mode if explicitly set to 'development'
+    is_dev = os.getenv('FLASK_ENV') == 'development'
+    app.run(host='0.0.0.0', port=port, debug=is_dev)

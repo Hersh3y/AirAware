@@ -19,24 +19,12 @@ FIRMS_BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api"
 
 EMPTY_GEOJSON = {"type": "FeatureCollection", "features": []}
 
-# Cache directory
+# Cache directory - single cache file for all FIRMS data
 CACHE_DIR = "firms_cache"
+CACHE_FILE = os.path.join(CACHE_DIR, "firms_data.json")
+
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
-
-def get_cache_file_path(bbox, days=7):
-    """Generate cache file path based on bounding box and time range"""
-    min_lon, min_lat, max_lon, max_lat = bbox
-    cache_key = f"firms_{min_lat:.2f}_{min_lon:.2f}_{max_lat:.2f}_{max_lon:.2f}_{days}d"
-    return os.path.join(CACHE_DIR, f"{cache_key}.json")
-
-def is_cache_valid(file_path, max_age_hours=3):
-    """Check if cache file is still valid (within max_age_hours)"""
-    if not os.path.exists(file_path):
-        return False
-    
-    file_age = time.time() - os.path.getmtime(file_path)
-    return file_age < (max_age_hours * 3600)
 
 def fetch_firms_data(bbox, days=7):
     """
@@ -52,8 +40,9 @@ def fetch_firms_data(bbox, days=7):
     start_date = end_date - timedelta(days=days)
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
-    url = f"{FIRMS_BASE_URL}/area/csv/{FIRMS_API_KEY}/VIIRS_SNPP_NPP/MODIS_NRT/{start_str}/{end_str}"
-    params = {'area': f"{min_lat},{min_lon},{max_lat},{max_lon}"}
+    # Updated FIRMS API endpoint - using VIIRS_SNPP_NRT as the source
+    url = f"{FIRMS_BASE_URL}/area/csv/{FIRMS_API_KEY}/VIIRS_SNPP_NRT/{min_lat},{min_lon},{max_lat},{max_lon}/{days}"
+    params = {}
     try:
         current_app.logger.info(f"Fetching FIRMS data for bbox: {bbox}, days: {days}")
         response = requests.get(url, params=params, timeout=30)
@@ -151,25 +140,20 @@ def get_fires():
         days = int(request.args.get('days', 7))
         days = min(days, 31)  # Cap at 31 days
         
-        # Check cache first
-        cache_file = get_cache_file_path(bbox, days)
-        if is_cache_valid(cache_file):
-            current_app.logger.info("Returning cached FIRMS data")
-            with open(cache_file, 'r') as f:
-                return jsonify(json.load(f))
-        
+        # Fetch fresh FIRMS data
         firms_data = fetch_firms_data(bbox, days)
+        
+        # Convert to GeoJSON (even if empty)
         if not firms_data:
-            return jsonify(EMPTY_GEOJSON)
+            geojson_data = EMPTY_GEOJSON
+        else:
+            geojson_data = convert_to_geojson(firms_data)
         
-        # Convert to GeoJSON
-        geojson_data = convert_to_geojson(firms_data)
-        
-        # Cache the result
+        # Always overwrite the single cache file (even when empty)
         try:
-            with open(cache_file, 'w') as f:
+            with open(CACHE_FILE, 'w') as f:
                 json.dump(geojson_data, f)
-            current_app.logger.info(f"Cached FIRMS data to {cache_file}")
+            current_app.logger.info(f"Cached FIRMS data to {CACHE_FILE} ({len(geojson_data.get('features', []))} features)")
         except Exception as e:
             current_app.logger.warning(f"Failed to cache FIRMS data: {e}")
         

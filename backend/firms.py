@@ -1,3 +1,4 @@
+# backend/firms.py
 """
 NASA FIRMS (Fire Information for Resource Management System) Integration
 Provides wildfire data via WFS proxy with caching and WMS tile layer support
